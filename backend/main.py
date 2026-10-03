@@ -2,10 +2,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
 import uuid
+from datetime import datetime
 
-app = FastAPI(title="Creación Audiovisual IA API")
+app = FastAPI(title="Edit Video Promosi Profesional API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,56 +14,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class GenerationRequest(BaseModel):
-    title: str
-    scene_type: str
-    duration_seconds: int
-    resolution: str
-    model_engine: str
-
-class GenerationStatus(BaseModel):
+class VideoJob(BaseModel):
     id: str
     title: str
     status: str
-    score: Optional[float] = None
+    score: float
     timestamp: str
+    render_url: Optional[str] = None
+    project_metadata: dict
 
-# In-memory store
-db = [
-    {"id": "1", "title": "Costa Brava Sunset", "status": "completed", "scene_type": "landscape", "duration_seconds": 30, "resolution": "4k", "score": 4.8, "model_engine": "flux-v1", "timestamp": "2023-10-27T10:00:00Z"}
-]
+# In-memory storage
+jobs = {
+    "job-123": {"id": "job-123", "title": "Promo Summer", "status": "completed", "score": 95.5, "timestamp": datetime.now().isoformat(), "render_url": "https://cdn.example.com/v1.mp4", "project_metadata": {"resolution": "1080p"}}
+}
 
 @app.get("/api/health")
-def health():
-    return {"status": "online", "timestamp": datetime.utcnow().isoformat()}
+def health_check():
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/api/analytics")
 def get_analytics():
-    return {"total_generations": len(db), "avg_score": sum(d['score'] for d in db if d['score']) / len(db)}
-
-@app.post("/api/generations/render")
-def create_generation(req: GenerationRequest):
-    new_gen = {
-        "id": str(uuid.uuid4()),
-        **req.dict(),
-        "status": "processing",
-        "score": 0.0,
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    db.append(new_gen)
-    return new_gen
-
-@app.get("/api/generations/status")
-def get_status(id: str):
-    for item in db:
-        if item["id"] == id:
-            return item
-    raise HTTPException(status_code=404, detail="Generation not found")
+    return {"total_jobs": len(jobs), "avg_score": 95.5}
 
 @app.post("/api/reviews")
-def submit_review(id: str, score: float):
-    for item in db:
-        if item["id"] == id:
-            item["score"] = score
-            return {"message": "Review updated", "id": id}
-    raise HTTPException(status_code=404, detail="Generation not found")
+def submit_review(data: dict):
+    return {"message": "Review received", "data": data}
+
+@app.post("/api/render/queue")
+def queue_render(payload: dict):
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {"id": job_id, "title": payload.get("title", "New Project"), "status": "queued", "score": 0.0, "timestamp": datetime.now().isoformat(), "project_metadata": payload}
+    return {"job_id": job_id, "status": "queued"}
+
+@app.get("/api/render/status/{job_id}")
+def get_status(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return jobs[job_id]
